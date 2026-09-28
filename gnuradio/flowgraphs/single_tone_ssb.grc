@@ -1,0 +1,364 @@
+options:
+  parameters:
+    author: Joel James P
+    catch_exceptions: 'True'
+    category: '[GRC Hier Blocks]'
+    cmake_opt: ''
+    comment: ''
+    copyright: ''
+    description: Single tone SSB-SC modulation and coherent demodulation
+    gen_cmake: 'On'
+    gen_linking: dynamic
+    generate_options: no_gui
+    hier_block_src_path: '.:'
+    id: single_tone_ssb
+    max_nouts: '0'
+    output_language: python
+    placement: (0,0)
+    qt_qss_theme: ''
+    realtime_scheduling: ''
+    run: 'True'
+    run_command: '{python} -u {filename}'
+    run_options: run
+    sizing_mode: fixed
+    thread_safe_setters: ''
+    title: Single Tone SSB-SC
+    window_size: (1000,600)
+  states:
+    bus_sink: false
+    bus_source: false
+    bus_structure: null
+    coordinate: [8, 8]
+    rotation: 0
+    state: enabled
+
+blocks:
+- name: samp_rate
+  id: variable
+  parameters:
+    value: '32000'
+  states:
+    coordinate: [300, 12]
+    rotation: 0
+    state: enabled
+- name: fc
+  id: variable
+  parameters:
+    value: '8000'
+  states:
+    coordinate: [300, 76]
+    rotation: 0
+    state: enabled
+- name: fm
+  id: variable
+  parameters:
+    value: '1000'
+  states:
+    coordinate: [300, 140]
+    rotation: 0
+    state: enabled
+- name: cutoff
+  id: variable
+  parameters:
+    value: '1500'
+  states:
+    coordinate: [300, 204]
+    rotation: 0
+    state: enabled
+- name: trans_width
+  id: variable
+  parameters:
+    value: '400'
+  states:
+    coordinate: [300, 268]
+    rotation: 0
+    state: enabled
+- name: num_taps
+  id: variable
+  parameters:
+    value: '129'
+  states:
+    coordinate: [300, 332]
+    rotation: 0
+    state: enabled
+- name: num_samples
+  id: variable
+  parameters:
+    value: '4000'
+  states:
+    coordinate: [300, 396]
+    rotation: 0
+    state: enabled
+
+- name: message_source
+  id: analog_sig_source_x
+  parameters:
+    amp: '1'
+    freq: fm
+    offset: '0'
+    phase: '0'
+    samp_rate: samp_rate
+    type: float
+    waveform: analog.GR_COS_WAVE
+  states:
+    coordinate: [8, 480]
+    rotation: 0
+    state: enabled
+- name: throttle
+  id: blocks_throttle2
+  parameters:
+    type: float
+    samples_per_second: samp_rate
+    vlen: '1'
+    ignoretag: 'True'
+    limit: auto
+    maximum: '0.1'
+  states:
+    coordinate: [216, 480]
+    rotation: 0
+    state: enabled
+- name: hilbert
+  id: hilbert_fc
+  parameters:
+    num_taps: num_taps
+    win: window.WIN_HAMMING
+    beta: '6.76'
+  states:
+    coordinate: [424, 480]
+    rotation: 0
+    state: enabled
+- name: c2f
+  id: blocks_complex_to_float
+  parameters:
+    vlen: '1'
+  states:
+    coordinate: [632, 480]
+    rotation: 0
+    state: enabled
+
+- name: carrier_cos
+  id: analog_sig_source_x
+  parameters:
+    amp: '1'
+    freq: fc
+    offset: '0'
+    phase: '0'
+    samp_rate: samp_rate
+    type: float
+    waveform: analog.GR_COS_WAVE
+  states:
+    coordinate: [424, 660]
+    rotation: 0
+    state: enabled
+- name: carrier_sin
+  id: analog_sig_source_x
+  parameters:
+    amp: '1'
+    freq: fc
+    offset: '0'
+    phase: '0'
+    samp_rate: samp_rate
+    type: float
+    waveform: analog.GR_SIN_WAVE
+  states:
+    coordinate: [424, 760]
+    rotation: 0
+    state: enabled
+
+- name: mult_re_cos
+  id: blocks_multiply_xx
+  parameters:
+    type: float
+    num_inputs: '2'
+    vlen: '1'
+  states:
+    coordinate: [840, 440]
+    rotation: 0
+    state: enabled
+- name: mult_im_sin
+  id: blocks_multiply_xx
+  parameters:
+    type: float
+    num_inputs: '2'
+    vlen: '1'
+  states:
+    coordinate: [840, 560]
+    rotation: 0
+    state: enabled
+
+- name: usb_sub
+  id: blocks_sub_xx
+  parameters:
+    type: float
+    num_inputs: '2'
+    vlen: '1'
+  states:
+    coordinate: [1048, 440]
+    rotation: 0
+    state: enabled
+- name: lsb_add
+  id: blocks_add_xx
+  parameters:
+    type: float
+    num_inputs: '2'
+    vlen: '1'
+  states:
+    coordinate: [1048, 560]
+    rotation: 0
+    state: enabled
+
+- name: mult_rx
+  id: blocks_multiply_xx
+  parameters:
+    type: float
+    num_inputs: '2'
+    vlen: '1'
+  states:
+    coordinate: [1048, 700]
+    rotation: 0
+    state: enabled
+- name: lpf
+  id: low_pass_filter
+  parameters:
+    type: fir_filter_fff
+    decim: '1'
+    gain: '1'
+    samp_rate: samp_rate
+    cutoff_freq: cutoff
+    width: trans_width
+    win: window.WIN_HAMMING
+    beta: '6.76'
+  states:
+    coordinate: [1256, 700]
+    rotation: 0
+    state: enabled
+- name: gain_x2
+  id: blocks_multiply_const_xx
+  parameters:
+    type: float
+    const: '2'
+    vlen: '1'
+  states:
+    coordinate: [1464, 700]
+    rotation: 0
+    state: enabled
+
+- name: head_message
+  id: blocks_head
+  parameters:
+    type: float
+    num_items: num_samples
+    vlen: '1'
+  states:
+    coordinate: [840, 300]
+    rotation: 0
+    state: enabled
+- name: head_usb
+  id: blocks_head
+  parameters:
+    type: float
+    num_items: num_samples
+    vlen: '1'
+  states:
+    coordinate: [1256, 440]
+    rotation: 0
+    state: enabled
+- name: head_lsb
+  id: blocks_head
+  parameters:
+    type: float
+    num_items: num_samples
+    vlen: '1'
+  states:
+    coordinate: [1256, 560]
+    rotation: 0
+    state: enabled
+- name: head_recovered
+  id: blocks_head
+  parameters:
+    type: float
+    num_items: num_samples
+    vlen: '1'
+  states:
+    coordinate: [1672, 700]
+    rotation: 0
+    state: enabled
+
+- name: sink_message
+  id: blocks_file_sink
+  parameters:
+    type: float
+    vlen: '1'
+    unbuffered: 'True'
+    append: 'False'
+    file: message.dat
+  states:
+    coordinate: [1048, 300]
+    rotation: 0
+    state: enabled
+- name: sink_usb
+  id: blocks_file_sink
+  parameters:
+    type: float
+    vlen: '1'
+    unbuffered: 'True'
+    append: 'False'
+    file: usb.dat
+  states:
+    coordinate: [1464, 440]
+    rotation: 0
+    state: enabled
+- name: sink_lsb
+  id: blocks_file_sink
+  parameters:
+    type: float
+    vlen: '1'
+    unbuffered: 'True'
+    append: 'False'
+    file: lsb.dat
+  states:
+    coordinate: [1464, 560]
+    rotation: 0
+    state: enabled
+- name: sink_recovered
+  id: blocks_file_sink
+  parameters:
+    type: float
+    vlen: '1'
+    unbuffered: 'True'
+    append: 'False'
+    file: recovered.dat
+  states:
+    coordinate: [1880, 700]
+    rotation: 0
+    state: enabled
+
+connections:
+- [message_source, '0', throttle, '0']
+- [throttle, '0', hilbert, '0']
+- [hilbert, '0', c2f, '0']
+- [c2f, '0', mult_re_cos, '0']
+- [carrier_cos, '0', mult_re_cos, '1']
+- [c2f, '1', mult_im_sin, '0']
+- [carrier_sin, '0', mult_im_sin, '1']
+- [mult_re_cos, '0', usb_sub, '0']
+- [mult_im_sin, '0', usb_sub, '1']
+- [mult_re_cos, '0', lsb_add, '0']
+- [mult_im_sin, '0', lsb_add, '1']
+- [usb_sub, '0', mult_rx, '0']
+- [carrier_cos, '0', mult_rx, '1']
+- [mult_rx, '0', lpf, '0']
+- [lpf, '0', gain_x2, '0']
+
+- [c2f, '0', head_message, '0']
+- [head_message, '0', sink_message, '0']
+- [usb_sub, '0', head_usb, '0']
+- [head_usb, '0', sink_usb, '0']
+- [lsb_add, '0', head_lsb, '0']
+- [head_lsb, '0', sink_lsb, '0']
+- [gain_x2, '0', head_recovered, '0']
+- [head_recovered, '0', sink_recovered, '0']
+
+metadata:
+  file_format: 1
+  grc_version: 3.10.12.0

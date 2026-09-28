@@ -1,14 +1,13 @@
-# SSB-SC (Single Sideband Suppressed Carrier) Simulation
+# SSB-SC (Single Sideband Suppressed Carrier) Project
 
 Implementation of the Single Sideband Suppressed Carrier communication system described in
-[`docs/PRINCIPLES OF COMMUNICATION.pdf`](docs/PRINCIPLES%20OF%20COMMUNICATION.pdf), covering the
-phasing-method modulator, single tone and multitone message signals, and a coherent (synchronous)
-detector at the receiver.
+[`docs/PRINCIPLES OF COMMUNICATION.pdf`](docs/PRINCIPLES%20OF%20COMMUNICATION.pdf): the phasing-method
+modulator, single tone and multitone message signals, and a coherent (synchronous) detector at the
+receiver. The project is implemented two ways:
 
-The original report prototypes the system as GNU Radio flowgraphs. This repo reimplements the same
-signal chain in Python (NumPy / SciPy) so it runs anywhere without a GNU Radio install, while keeping
-the same block structure and parameters (Hilbert transformer, multiply/add stages, low pass filter
-receiver) described in the report.
+- **MATLAB** (`matlab/`) — a from-scratch signal processing implementation.
+- **GNU Radio** (`gnuradio/`) — the same system as an actual GNU Radio flowgraph, with its own
+  output data plotted for the results.
 
 ## Theory recap
 
@@ -32,47 +31,95 @@ v(t)  = s(t) * cos(2*pi*fc*t)
 m(t)  = LPF(v(t)) * 2
 ```
 
-## Project layout
+## MATLAB implementation
 
 ```
-src/ssb_core.py         core building blocks: tone/multitone generators, FIR Hilbert transformer,
-                         SSB modulator, coherent demodulator, spectrum helper
-src/single_tone_ssb.py  single tone SSB-SC modulation + demodulation, saves results/single_tone_ssb.png
-src/multitone_ssb.py    multitone SSB-SC modulation + demodulation, saves results/multitone_ssb.png
-docs/                   original project report (PDF)
-results/                generated plots from the two scripts above
+matlab/hilbert_fir_coeffs.m   Hilbert transformer FIR design (Parks-McClellan / firpm)
+matlab/ssb_modulate.m         phasing-method SSB-SC modulator (USB or LSB)
+matlab/coherent_demod.m       coherent detector (multiply by carrier + low pass filter)
+matlab/make_multitone.m       multitone message generator
+matlab/single_tone_ssb.m      single tone demo, saves matlab/results/single_tone_ssb.png
+matlab/multitone_ssb.m        multitone demo, saves matlab/results/multitone_ssb.png
 ```
 
-The Hilbert transform is implemented as a finite-tap FIR filter designed with `scipy.signal.remez`
-(the same idea as the "Hilbert, Num Taps: 10k" block used in the GNU Radio flowgraphs), rather than
-the ideal FFT-based transform, so the sideband suppression seen in the results reflects a real,
-finite-length filter instead of a mathematically perfect one.
-
-## Running it
+Run with MATLAB (Signal Processing Toolbox required):
 
 ```
-pip install -r requirements.txt
-cd src
-python single_tone_ssb.py
-python multitone_ssb.py
+cd matlab
+matlab -batch single_tone_ssb
+matlab -batch multitone_ssb
 ```
 
-Each script prints a short summary to the console and writes a figure to `results/`.
+### MATLAB results
 
-## Results
+**Single tone (fm = 1 kHz, fc = 8 kHz)**
 
-### Single tone (fm = 1 kHz, fc = 8 kHz)
+![single tone SSB-SC, MATLAB](matlab/results/single_tone_ssb.png)
 
-![single tone SSB-SC](results/single_tone_ssb.png)
+USB/LSB sideband suppression comes out to roughly 56-57 dB (a finite 129-tap Hilbert filter, not an
+idealized transform), and the coherent detector recovers the original tone almost exactly from
+either sideband.
 
-The spectrum plot shows the carrier and opposite sideband suppressed by roughly 55-60 dB relative to
-the transmitted tone, and the coherent detector recovers the original 1 kHz tone from either the USB
-or LSB signal almost exactly, aside from the short filter settling transient at the very start.
+**Multitone (300 Hz, 700 Hz, 1200 Hz message)**
 
-### Multitone (300 Hz, 700 Hz, 1200 Hz message)
+![multitone SSB-SC, MATLAB](matlab/results/multitone_ssb.png)
 
-![multitone SSB-SC](results/multitone_ssb.png)
+Each tone shows up as its own spectral line, mirrored around the carrier depending on which
+sideband is kept, and the recovered waveform tracks the original multitone message closely.
 
-Each of the three tones shows up as its own line in the SSB spectrum, mirrored around the carrier
-depending on which sideband is kept, and the recovered waveform tracks the original multitone
-message closely after the initial transient dies out.
+## GNU Radio implementation
+
+```
+gnuradio/flowgraphs/single_tone_ssb.grc    single tone TX + coherent RX flowgraph
+gnuradio/flowgraphs/multitone_ssb.grc      multitone TX + coherent RX flowgraph
+gnuradio/schematics/                       screenshots of the flowgraphs in GNU Radio Companion
+gnuradio/data/                             raw float32 output captured from each flowgraph run
+gnuradio/read_gnuradio_dat.m               reads a GNU Radio File Sink .dat into MATLAB
+gnuradio/plot_single_tone_result.m         plots gnuradio/data/single_tone -> gnuradio/results
+gnuradio/plot_multitone_result.m           plots gnuradio/data/multitone -> gnuradio/results
+```
+
+Both flowgraphs build the SSB-SC signal with the phasing method — a `Hilbert` block (finite-tap
+FIR, same idea as the MATLAB version) feeding two `Multiply` and an `Add`/`Subtract` block to form
+the LSB and USB signals — then coherently demodulate the USB signal with a `Multiply` + `Low Pass
+Filter`. Rather than the usual live QT GUI plots, each flowgraph runs headless (`Head` blocks cap
+it at 4000 samples) and writes the message, USB, LSB and recovered signals straight to `File Sink`
+blocks as raw float32 data, so the run is fully reproducible from the command line:
+
+```
+grcc -o . -r gnuradio/flowgraphs/single_tone_ssb.grc
+grcc -o . -r gnuradio/flowgraphs/multitone_ssb.grc
+```
+
+The `.dat` files this produces are read back and plotted from MATLAB (`gnuradio/plot_*.m`), which
+is how `gnuradio/results/*.png` below were generated — these are GNU Radio's own numbers, not a
+re-run of the MATLAB modulator.
+
+### GNU Radio schematics
+
+**Single tone flowgraph**
+
+![single tone SSB-SC flowgraph](gnuradio/schematics/single_tone_ssb_schematic.png)
+
+**Multitone flowgraph**
+
+![multitone SSB-SC flowgraph](gnuradio/schematics/multitone_ssb_schematic.png)
+
+### GNU Radio results
+
+**Single tone**
+
+![single tone SSB-SC, GNU Radio](gnuradio/results/single_tone_ssb_gnuradio.png)
+
+USB sideband suppression measured directly from the flowgraph's own output: ~61 dB. The coherent
+detector's recovered signal matches the original tone with an RMS error of ~0.00015 once the
+Hilbert/low-pass filter's startup transient has settled.
+
+**Multitone**
+
+![multitone SSB-SC, GNU Radio](gnuradio/results/multitone_ssb_gnuradio.png)
+
+The receive chain's causal FIR filters (unlike MATLAB's zero-phase `filtfilt`) introduce a real
+group delay (~96 samples here) between the transmitted and recovered signals; the plotting script
+finds this delay by cross-correlation and aligns the two before overlaying them and computing the
+RMS error (~0.0005 after alignment).
